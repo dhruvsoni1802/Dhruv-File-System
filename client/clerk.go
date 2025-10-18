@@ -7,67 +7,128 @@ import (
 	"net/rpc"
 )
 
-//This struct is the Clerk that will be used to communicate with the servers
-type MathClerk struct {
-	clients map[string]*rpc.Client
+// Clerk struct with a generic map of server types, each containing their own client pools
+type Clerk struct {
+	servers map[string]map[string]*rpc.Client // servers[serverType][address] = client
 }
 
-//This method creates a new MathClerk connected to one server
-func NewMathClerk(serverAddress string) (*MathClerk, error) {
-	client, err := rpc.DialHTTP("tcp", serverAddress)
-	if err != nil {
-		return nil, err
+// NewClerk creates a new Clerk
+func NewClerk() *Clerk {
+	return &Clerk{
+		servers: make(map[string]map[string]*rpc.Client),
 	}
-	
-	// Start with one server
-	clients := make(map[string]*rpc.Client)
-	clients[serverAddress] = client
-	
-	return &MathClerk{clients: clients}, nil
 }
 
-// AddServer adds another replica server to the pool
-// Use this to add backup servers
-func (c *MathClerk) AddServer(serverAddress string) error {
+// AddServer adds a new server of a given type to the clerk's client pool
+func (c *Clerk) AddServer(serverType, serverAddress string) error {
 	client, err := rpc.DialHTTP("tcp", serverAddress)
 	if err != nil {
 		return err
 	}
-	c.clients[serverAddress] = client
+	
+	// Initialize the map for this server type if it doesn't exist
+	if _, exists := c.servers[serverType]; !exists {
+		c.servers[serverType] = make(map[string]*rpc.Client)
+	}
+	
+	c.servers[serverType][serverAddress] = client
 	return nil
 }
 
-// Add sends Add RPC to servers, tries each one until one succeeds
-// This is useful when you have replicated servers
-func (c *MathClerk) Add(a, b int) (int, error) {
-	args := &shared.Args{A: a, B: b}
-	var reply shared.Reply
-
-	// Try each server in the map
-	for serverAddr, client := range c.clients {
-		err := client.Call("MathService.Add", args, &reply)
-		
-		// If this server succeeded, return the result
-		if err == nil {
-			fmt.Printf("Successfully called Add on %s\n", serverAddr)
-			return reply.Result, nil
-		}
-		
-		// If this server failed, log and try the next one
-		fmt.Printf("Server %s failed: %v (trying next...)\n", serverAddr, err)
+// RemoveServer removes a server of a given type from the clerk's client pool
+func (c *Clerk) RemoveServer(serverType, serverAddress string) error {
+	clients, exists := c.servers[serverType]
+	if !exists {
+		return errors.New("server type not found")
 	}
-
-	// All servers failed
-	return 0, errors.New("all servers failed")
+	
+	client, exists := clients[serverAddress]
+	if !exists {
+		return errors.New("server address not found")
+	}
+	
+	err := client.Close()
+	if err != nil {
+		return err
+	}
+	
+	delete(clients, serverAddress)
+	return nil
 }
 
-//To close all connections
-func (c *MathClerk) Close() error {
-	for serverAddr, client := range c.clients {
-		err := client.Close()
-		if err != nil {
-			fmt.Printf("Error closing connection to %s: %v\n", serverAddr, err)
-			return err
+// callRPC is a generic helper that tries an RPC call on each server of a given type until one succeeds
+func (c *Clerk) callRPC(serverType, method string, args interface{}, reply interface{}) error {
+	clients, exists := c.servers[serverType]
+	if !exists {
+		return errors.New("no servers of type: " + serverType)
+	}
+	
+	if len(clients) == 0 {
+		return errors.New("no available servers of type: " + serverType)
+	}
+	
+	for serverAddr, client := range clients {
+		err := client.Call(method, args, reply)
+		
+		if err == nil {
+			fmt.Printf("Successfully called %s on %s (%s server)\n", method, serverAddr, serverType)
+			return nil
+		}
+		
+		fmt.Printf("Server %s failed: %v (trying next...)\n", serverAddr, err)
+	}
+	
+	return errors.New("all " + serverType + " servers failed")
+}
+
+// Add sends Add RPC to math servers, tries each one until one succeeds
+func (c *Clerk) Add(a, b int) (int, error) {
+	args := &shared.Args{A: a, B: b}
+	var reply shared.MathReply
+	
+	err := c.callRPC("math", "MathService.Add", args, &reply)
+	if err != nil {
+		return 0, err
+	}
+	
+	return reply.Result, nil
+}
+
+// ReadFile sends ReadFile RPC to master servers
+func (c *Clerk) ReadFile(fileName string, offset uint64) ([]string, error) {
+	args := &shared.ReadFileArgsMaster{FileName: fileName, Offset: offset}
+	var reply shared.ReadFileReply
+	
+	err := c.callRPC("master", "Master.ReadFile", args, &reply)
+	if err != nil {
+		return nil, err
+	}
+	
+	return reply.ChunkServerAddresses, nil
+}
+
+// WriteFile sends WriteFile RPC to master servers
+func (c *Clerk) WriteFile(fileName string, data string) ([]string, error) {
+	args := &shared.WriteFileArgsMaster{FileName: fileName, DataSize: uint64(len(data))}
+	var reply shared.WriteFileReply
+	
+	err := c.callRPC("master", "Master.WriteFile", args, &reply)
+	if err != nil {
+		return nil, err
+	}
+	
+	return reply.ChunkServerAddresses, nil
+}
+
+
+func (c *Clerk) Close() error {
+	for serverType, clients := range c.servers {
+		for serverAddr, client := range clients {
+			err := client.Close()
+			if err != nil {
+				fmt.Printf("Error closing connection to %s server %s: %v\n", serverType, serverAddr, err)
+				return err
+			}
 		}
 	}
 	return nil

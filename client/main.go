@@ -6,13 +6,11 @@ import (
 )
 
 func main() {
-	client, err := NewMathClerk("localhost:1234")
-	if err != nil {
-		log.Fatal("Error creating MathClerk:", err)
-	}
-	defer client.Close()
+	clerk := NewClerk()
 
-	result, err := client.Add(3, 2)
+	clerk.AddServer("math", "localhost:1234")
+
+	result, err := clerk.Add(3, 2)
 	if err != nil {
 		log.Fatal("Error adding numbers:", err)
 	}

@@ -9,11 +9,11 @@ import (
 	"net/rpc"
 )
 
-//This struct is a service that will bind all RPC methods
+//This struct is the receiver for the RPC methods
 type MathService struct{}
 
-//This method will be called by Client to add two numbers via RPC
-func (m *MathService) Add(args *shared.Args, reply *shared.Reply) error {
+//This method will be called by MathClerk to add two numbers via RPC
+func (m *MathService) Add(args *shared.Args, reply *shared.MathReply) error {
 	reply.Result = args.A + args.B
 	return nil
 }
