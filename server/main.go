@@ -1,6 +1,7 @@
 package main
 
 import (
+	"DFS/shared"
 	"fmt"
 	"log"
 	"net"
@@ -8,17 +9,12 @@ import (
 	"net/rpc"
 )
 
-//This struct is the client input for the Add method
-type Args struct {
-	A,B int
-}
-
 //This struct is a service that will bind all RPC methods
 type MathService struct{}
 
 //This method will be called by Client to add two numbers via RPC
-func (m *MathService) Add(args *Args, reply *int) error {
-	*reply = args.A + args.B
+func (m *MathService) Add(args *shared.Args, reply *shared.Reply) error {
+	reply.Result = args.A + args.B
 	return nil
 }
 
