@@ -108,8 +108,8 @@ func (c *Clerk) ReadFile(fileName string, offset uint64) ([]string, error) {
 }
 
 // WriteFile sends WriteFile RPC to master servers
-func (c *Clerk) WriteFile(fileName string, data string) ([]string, error) {
-	args := &shared.WriteFileArgsMaster{FileName: fileName, DataSize: uint64(len(data))}
+func (c *Clerk) WriteFile(fileName string, dataSize uint64) ([]string, error) {
+	args := &shared.WriteFileArgsMaster{FileName: fileName, DataSize: dataSize}
 	var reply shared.WriteFileReply
 	
 	err := c.callRPC("master", "Master.WriteFile", args, &reply)
