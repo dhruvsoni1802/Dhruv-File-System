@@ -95,8 +95,8 @@ func (c *Clerk) Add(a, b int) (int, error) {
 }
 
 // ReadFile sends ReadFile RPC to master servers
-func (c *Clerk) ReadFile(fileName string, offset uint64) ([]string, error) {
-	args := &shared.ReadFileArgsMaster{FileName: fileName, Offset: offset}
+func (c *Clerk) ReadFile(fileName string, chunk_index uint64) ([]string, error) {
+	args := &shared.ReadFileArgsMaster{FileName: fileName, Chunk_Index: chunk_index}
 	var reply shared.ReadFileReply
 	
 	err := c.callRPC("master", "Master.ReadFile", args, &reply)

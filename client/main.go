@@ -17,15 +17,15 @@ func main() {
 	}
 	fmt.Println("Result:", result)
 
-	chunkServerAddresses, err := clerk.ReadFile("test.txt", 0)
+	//Each chunk is 20KB in sizee, hence based on the file size, we calculate the number of chunks and then read the file using the chunk index
+	fileSize := 60 * 1024 // 60KB
+	chunkSize := 20 * 1024 // 20KB
+	numChunks := fileSize / chunkSize
+
+	//We read the last chunk of the file as an example for now (Chunk indexes are 0-indexed)
+	chunkServerAddresses, err := clerk.ReadFile("test.txt", uint64(numChunks - 1))
 	if err != nil {
 		log.Fatal("Error reading file:", err)
-	}
-	fmt.Println("Chunk server addresses:", chunkServerAddresses)
-
-	chunkServerAddresses, err = clerk.WriteFile("test.txt",64)
-	if err != nil {
-		log.Fatal("Error writing file:", err)
 	}
 	fmt.Println("Chunk server addresses:", chunkServerAddresses)
 }

@@ -8,7 +8,7 @@ type Args struct {
 //This struct is the client input for the ReadFile method
 type ReadFileArgsMaster struct {
 	FileName string
-	Offset uint64
+	Chunk_Index uint64
 }
 
 //This struct is the client input for the WriteFile method
